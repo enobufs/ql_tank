@@ -1,10 +1,11 @@
-import random as rand 
+import random as rand
+import numpy as np
 import math
-import readchar
 import argparse
+import readchar
 import matplotlib.pyplot as plt
 
-
+# Global constants
 ALPHA = 0.5     # learning rate
 NOISE = 0.2     # known as epsilon
 GAMMA = 0.9     # discount rate
@@ -16,45 +17,95 @@ CELL_WALL = 1 # cannot enter
 CELL_SUCC = 2 # success and exit
 CELL_FAIL = 3 # fail and exit
 
+ACTION_UP = 0
+ACTION_DOWN = 1
+ACTION_RIGHT = 2
+ACTION_LEFT = 3
+
+WIDTH = 4  # x
+HEIGHT = 3 # y
+N_STATES = WIDTH * HEIGHT
+N_ACTIONS = 4
+
+def to_action_name(action):
+    if action == ACTION_UP:
+        return "up"
+    if action == ACTION_DOWN:
+        return "down"
+    if action == ACTION_RIGHT:
+        return "right"
+    if action == ACTION_LEFT:
+        return "left"
+
+    raise Exception("Invalid action: %d" % (action))
+
 
 class Environment:
 
     def __init__(self):
-        self.shape = (3, 4) # (height, width)
-        self.cur_pos = (0, 0)
+        # To get cell type by position.
+        # ex) cell type at (x, y): self.map[y][x]
         self.map = [
             [CELL_ROOM, CELL_ROOM, CELL_ROOM, CELL_ROOM],
             [CELL_ROOM, CELL_WALL, CELL_ROOM, CELL_FAIL],
             [CELL_ROOM, CELL_ROOM, CELL_ROOM, CELL_SUCC]
         ]
+        # To get reward by position.
+        # ex) reward at (x, y): self.reward[y][x]
         self.reward = [
             [0.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, -1.0],
             [0.0, 0.0, 0.0, 1.0]
         ]
+        # To get state by position.
+        # ex) state at (x, y): self.states[y][x]
+        self.states = [
+            [0, 1, 2, 3],
+            [4, 5, 6, 7],
+            [8, 9, 10, 11]
+        ]
 
-    def action(self, action_name):
+        self.reset()
+
+    def pos2state(self, pos):
+        return self.states[pos[1]][pos[0]]
+
+    def state2pos(self, s):
+        return (s % WIDTH, math.floor(s / HEIGHT))
+
+    def cur_state(self):
+        return self.pos2state(self.cur_pos)
+
+    def pre_state(self):
+        if self.pre_pos == None:
+            return None
+        return self.pos2state(self.pre_pos)
+
+    def is_ended(self):
+        ct = self.map[self.cur_pos[1]][self.cur_pos[0]]
+        return ct == CELL_SUCC or ct == CELL_FAIL
+
+    def action(self, action):
         pos = self.cur_pos
         if pos == (3, 2) or pos == (3, 1):
             raise Exception("No action is allowed in the end state.")
 
-        next_x = self.cur_pos[0]
-        next_y = self.cur_pos[1]
+        next_x, next_y = self.cur_pos
 
-        if action_name == "u":
-            if self.cur_pos[1] != self.shape[0] - 1:
+        if action == ACTION_UP:
+            if self.cur_pos[1] != HEIGHT - 1:
                 next_y += 1
-        elif action_name == "d":
+        elif action == ACTION_DOWN:
             if self.cur_pos[1] != 0:
                 next_y -= 1
-        elif action_name == "l":
+        elif action == ACTION_LEFT:
             if self.cur_pos[0] != 0:
                 next_x -= 1
-        elif action_name == "r":
-            if self.cur_pos[0] != self.shape[1] - 1:
+        elif action == ACTION_RIGHT:
+            if self.cur_pos[0] != WIDTH - 1:
                 next_x += 1
         else:
-            raise Exception("Invalid action: %s" % (action_name)) 
+            raise Exception("Invalid action: %s" % (to_action_name(action))) 
 
         reward = self.reward[next_y][next_x]
 
@@ -63,8 +114,7 @@ class Environment:
         if ct != CELL_SUCC and ct != CELL_FAIL:
             if ct == CELL_WALL:
                 # Move back to the original location
-                next_x = self.cur_pos[0]
-                next_y = self.cur_pos[1]
+                next_x, next_y = self.cur_pos
 
             reward = TCOST
 
@@ -72,33 +122,12 @@ class Environment:
         self.pre_pos = self.cur_pos
         self.cur_pos = (next_x, next_y)
 
-        return self.cur_pos, reward
+        return self.cur_state(), reward
 
     def reset(self):
         self.pre_pos = None
         self.cur_pos = (0, 0)
-        return self.cur_pos
-
-
-def max_a(s):
-    return max(s["u"], s["d"], s["r"], s["l"])
-
-def to_state_name(state):
-    return "%d-%d" % state
-
-def new_state(name, pos, ct):
-    return {
-        "name": name,   # name of this state
-        "pos": pos,     # (x, y)
-        "ct": ct,       # cell type for this state
-        "u": 0.0,       # utility for action, 'up'
-        "d": 0.0,       # utility for action, 'down'
-        "l": 0.0,       # utility for action, 'left'
-        "r": 0.0        # utility for action, 'right'
-    }
-
-def by_utility(s):
-    return s["utility"]
+        return self.cur_state()
 
 
 class Agent:
@@ -110,7 +139,7 @@ class Agent:
         self.error_rates = []
         self.env = Environment()
         self.reset()
-        self.S = { self.cur_st_name: new_state(self.cur_st_name, (0, 0), CELL_ROOM) }
+        self.Q = np.zeros((N_STATES, N_ACTIONS))
         self.draw()
 
     def train(self, auto, episodes):
@@ -118,63 +147,52 @@ class Agent:
 
         while True:
             if self.auto:
-
+                # Automatic trainig
                 if self.episode == episodes:
                     break
 
-                cur_st = self.S[self.cur_st_name]
-                actions = [
-                        { "act": "u", "utility": cur_st["u"] },
-                        { "act": "d", "utility": cur_st["d"] },
-                        { "act": "l", "utility": cur_st["l"] },
-                        { "act": "r", "utility": cur_st["r"] }
-                ]
-                actions = sorted(actions, key=by_utility, reverse=True)
-
-                idx = 0
-                msg = "BEST"
+                action = 0
                 if rand.random() < EPSILON:
-                    # choose randomly from index [1, 3]
-                    idx = math.floor(rand.random() * 3) + 1
+                    # choose the action randomly
+                    action = math.floor(rand.random() * 4)
                     msg = "RAND"
-                act = actions[idx]["act"];
-                print("Action chosen: %s (%s)" % (act, msg))
+                else:
+                    # pick the best action based on Q-values for the current state
+                    action = np.argmax(self.Q[self.env.cur_state()])
+                    msg = "BEST"
+
+                print("Action chosen: %s (%s)" % (to_action_name(action), msg))
 
             else:
+                # Manual trainig
+                # Wait for an arrow key input.
                 key = readchar.readkey()
                 if key == '\x1b[A':
-                    act = "u"
+                    action = ACTION_UP
                 elif key == '\x1b[B':
-                    act = "d"
+                    action = ACTION_DOWN
                 elif key == '\x1b[C':
-                    act = "r"
+                    action = ACTION_RIGHT
                 elif key == '\x1b[D':
-                    act = "l"
-                elif key == '\r':
-                    break
+                    action = ACTION_LEFT
                 else:
                     print("Aborted")
-                    continue
+                    break
 
             self.move += 1
 
-            s, r = self.env.action(act)
-            new_st_name = to_state_name(s)
-            ct = self.env.map[s[1]][s[0]]
-            if not new_st_name in self.S:
-                new_st = new_state(new_st_name, s, ct)
-                self.S[new_st_name] = new_st
-            else:
-                new_st = self.S[new_st_name]
+            # Make action to the environment.
+            # The environment returns the new state and the immediate reward.
+            s, r = self.env.action(action)
 
-            # Update the current state name
-            self.pre_st_name = self.cur_st_name
-            self.cur_st_name = new_st_name
-            self.last_action = act
+            # Update the current state
+            self.last_action = action
 
-            self._update(r)
+            # Update the Q table
+            self._update_Q(r)
 
-            if math.fabs(r) == 1.0:
+            # If the current state is the end state, go back to the initial state.
+            if self.env.is_ended():
                 if r < 0.0:
                     self.errors += 1
                 self.reset()
@@ -182,22 +200,25 @@ class Agent:
             self.draw()
 
         if self.auto:
+            print("Plotting...")
             plt.plot(self.error_rates)
             plt.ylabel("Error ratio")
-            plt.xlabel("Episodes")
+            plt.xlabel("(x5) Episodes")
             plt.show()
+            print("Done")
 
-    def _update(self, r):
-        pre_st = self.S[self.pre_st_name]
-        cur_st = self.S[self.cur_st_name]
+    def _update_Q(self, r):
+        s_pre = self.env.pre_state() # s(t)
+        s_cur = self.env.cur_state() # s(t+1)
+        a = self.last_action;
 
-        pre_st[self.last_action] += ALPHA * (r + GAMMA * max_a(cur_st) - pre_st[self.last_action])
+        # The heart of Q-Learning
+        self.Q[s_pre, a] += ALPHA * (r + GAMMA * np.amax(self.Q[s_cur]) - self.Q[s_pre, a])
 
     def reset(self):
+        self.env.reset()
         self.episode += 1
         self.move = 0
-        self.cur_st_name = to_state_name(self.env.reset())
-        self.pre_st_name = None
         self.last_action = None
         if self.episode % 5 == 0:
             self.error_rates.append(self.errors / self.episode)
@@ -206,48 +227,36 @@ class Agent:
         pos = self.env.cur_pos
         print("EPISODE: %d, MOVE: %d, ERROR RATE: %.2f" % (self.episode, self.move, self.errors/self.episode))
         print("+-------------+-------------+-------------+-------------+")
-        for ry in range(self.env.shape[0]):
-            y = self.env.shape[0] - 1 - ry
+        for ry in range(HEIGHT):
+            y = HEIGHT - 1 - ry
             l1 = "|"
             l2 = "|"
             l3 = "|"
-            for x in range(self.env.shape[1]):
-                sn = to_state_name((x, y))
-                s = None
-                if sn in self.S:
-                    s = self.S[sn]
-
+            for x in range(WIDTH):
                 ct = self.env.map[y][x]
                 if ct == CELL_WALL:
                     l1 += "#############|"
                     l2 += "#############|"
                     l3 += "#############|"
-    
+                elif ct == CELL_SUCC:
+                    l1 += "+-----------+|"
+                    l2 += "|  Success  ||"
+                    l3 += "+-----------+|"
+                elif ct == CELL_FAIL:
+                    l1 += "+-----------+|"
+                    l2 += "|    Fail   ||"
+                    l3 += "+-----------+|"
                 else:
-                    if s == None:
-                        # Unknown location
-                        l1 += "             |"
-                        l2 += "      ?      |"
-                        l3 += "             |"
-                    else:
-                        marker = " "
-                        if (x, y) == self.env.cur_pos:
-                            marker = "*"
-                        elif (x, y) == self.env.pre_pos:
-                            marker = "+"
+                    s = self.env.pos2state((x, y))
+                    marker = " "
+                    if s == self.env.cur_state():
+                        marker = "*"
+                    elif s == self.env.pre_state():
+                        marker = "+"
 
-                        if s["ct"] == CELL_SUCC:
-                            l1 += "+-----------+|"
-                            l2 += "|  Success  ||"
-                            l3 += "+-----------+|"
-                        elif s["ct"] == CELL_FAIL:
-                            l1 += "+-----------+|"
-                            l2 += "|    Fail   ||"
-                            l3 += "+-----------+|"
-                        else:
-                            l1 += "    %+.2f    |" % (s["u"])
-                            l2 += "%+.2f %s %+.2f|" % (s["l"], marker, s["r"])
-                            l3 += "    %+.2f    |" % (s["d"])
+                    l1 += "    %+.2f    |" % (self.Q[s, ACTION_UP])
+                    l2 += "%+.2f %s %+.2f|" % (self.Q[s, ACTION_LEFT], marker, self.Q[s, ACTION_RIGHT])
+                    l3 += "    %+.2f    |" % (self.Q[s, ACTION_DOWN])
 
             print(l1)
             print(l2)

@@ -7,6 +7,10 @@ This program impolements Q-Learning algorithm explained in the following awesome
 * Reinforcement Learning 3 - Q Learning ([youtube](https://www.youtube.com/watch?v=1XRahNzA5bE))
 * Reinforcement Learning 4 - Q Learning Parameters ([youtube](https://www.youtube.com/watch?v=XrxgdpduWOU))
 
+This code implements the following Q-Learning equation:
+![math](https://latex.codecogs.com/gif.latex?Q%28s_%7Bt%7D%2C%20a_%7Bt%7D%29%20%2B%3D%20%5Calpha%20%5Cleft%20%5C%7B%20r_%7Bt%2B1%7D%20%2B%20%5Cgamma%20%5Ccdot%20%5Cmax_%7Ba%7DQ%28s_%7Bt%2B1%7D%2C%20a%29-Q%28s_%7Bt%7D%2C%20a_%7Bt%7D%29%20%5Cright%20%5C%7D)
+
+
 ## Pre-requisite
 * Python3
 * pip3 install matplotlib
