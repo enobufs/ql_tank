@@ -25,26 +25,25 @@ The manual mode would help you understand how Q(s, a) values are updated as you 
 $ python3 ql_tank.py
 
 Auto-training:  False
->>> Use arrow keys to perform actions. Hit enter to exit. <<<
+>>> Use arrow keys to perform actions. Hit other keys to exit. <<<
 EPISODE: 1, MOVE: 0, ERROR RATE: 0.00
 +-------------+-------------+-------------+-------------+
-|             |             |             |             |
-|      ?      |      ?      |      ?      |      ?      |
-|             |             |             |             |
+|    +0.00    |    +0.00    |    +0.00    |+-----------+|
+|+0.00   +0.00|+0.00   +0.00|+0.00   +0.00||  Success  ||
+|    +0.00    |    +0.00    |    +0.00    |+-----------+|
 +-------------+-------------+-------------+-------------+
-|             |#############|             |             |
-|      ?      |#############|      ?      |      ?      |
-|             |#############|             |             |
+|    +0.00    |#############|    +0.00    |+-----------+|
+|+0.00   +0.00|#############|+0.00   +0.00||    Fail   ||
+|    +0.00    |#############|    +0.00    |+-----------+|
 +-------------+-------------+-------------+-------------+
-|    +0.00    |             |             |             |
-|+0.00 * +0.00|      ?      |      ?      |      ?      |
-|    +0.00    |             |             |             |
+|    +0.00    |    +0.00    |    +0.00    |    +0.00    |
+|+0.00 * +0.00|+0.00   +0.00|+0.00   +0.00|+0.00   +0.00|
+|    +0.00    |    +0.00    |    +0.00    |    +0.00    |
 +-------------+-------------+-------------+-------------+
 ```
 
 The '*' indicates where the current position is. Use arrow keys to move. The cell filled with `#` is
-a wall, and you cannot enter. The cells with `?` implies that you (the agent) does not know what is
-there yet.
+a wall, and you cannot enter.
 
 
 ### Automatic actions
